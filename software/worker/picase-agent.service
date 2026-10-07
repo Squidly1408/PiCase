@@ -1,0 +1,12 @@
+[Unit]
+Description=PiCase worker bus agent (answers the controller over the backplane)
+After=network.target
+
+[Service]
+Type=simple
+ExecStart=/usr/bin/python3 /opt/picase/worker/bus_agent.py --set-hostname
+Restart=always
+RestartSec=2
+
+[Install]
+WantedBy=multi-user.target

@@ -1,0 +1,37 @@
+qty,part,example / spec,section,notes
+1,Hard case,"approx. 460 x 330 x 170 mm inside, plastic shell (Pelican/Nanuk/Apache style)",Case,Avoid aluminium - blocks Wi-Fi
+1,Mounting plate,3 mm plywood or acrylic cut to the case floor,Case,Everything screws to this; plate lifts out
+1,Hinged deck,3 mm plate + piano hinge,Case,Carries keyboard; cut vents over the Pi bay
+1,Card guide comb,3D printed (30 mm pitch),Case,Holds the top edge of each blade
+8,Raspberry Pi 5 (4 GB or 8 GB),Pi 4 also supported,Compute,Slot 0 = controller
+8,microSD card 32 GB+ (A2),or NVMe HAT + SSD,Compute,Check NVMe fits 30 mm pitch
+8,Low-profile cooler <= 20 mm,Official Pi 5 Active Cooler,Compute,
+1,13.3in portable HDMI monitor,USB-C powered,User I/O,Mounted in lid
+1,Slim micro-HDMI to HDMI cable ~50 cm,,User I/O,Route through the hinge with a slack loop
+1,Compact keyboard with touchpad,USB or 2.4 GHz,User I/O,
+1,8-port Gigabit unmanaged switch,12 V or 5 V input,Network,
+8,Cat6 slim patch lead 15 cm,,Network,
+1,USB 3 Gigabit Ethernet adapter,,Network,Becomes eth1 = wired uplink
+1,Panel-mount RJ45 coupler + 20 cm patch,,Network,Side panel
+1,USB Wi-Fi adapter with external antenna,Linux supported chipset,Network,Optional in a plastic case
+2,Panel-mount USB-A extension,,User I/O,Side panel
+1,12 V >= 15 A (180 W) power supply,with XT60 or Anderson lead,Power,External brick - no mains in the case
+1,Panel-mount XT60 or Anderson Powerpole socket,,Power,Barrel jacks are not rated for 15 A
+1,20 A DC rocker switch,,Power,Master power
+1,Inline blade fuse holder + 20 A fuse,,Power,
+1,12 V distribution terminal bar,,Power,
+2,12 V to 5 V adjustable buck converter >= 15 A,,Power,One per 4 slots; set to 5.10 V
+1,12 V to USB-C PD module >= 30 W,,Power,Lid monitor
+2,60 mm 12 V fan + finger guard,,Cooling,Rear wall
+1,Backplane board,large perfboard ~270 x 130 mm or custom PCB,Backplane,
+8,Right-angle 2x20 female header 2.54 mm,,Backplane,One per slot
+8,3.3 V RS-485 module,MAX3485 / SP3485 class,Backplane,Remove onboard 120R except end modules
+8,Resettable PTC fuse 3 A hold >= 6 V,,Backplane,Per-slot 5 V
+8,Slide or rocker switch >= 3 A,,Backplane,Per-slot power
+8,4-way DIP switch,or solder jumpers,Backplane,Slot ID
+8,5 mm LED + 330 ohm resistor,,Backplane,Slot status
+2,120 ohm resistor,,Backplane,Bus termination at both ends
+1,Wire kit,"1.5 mm2 (16 AWG) red/black, 22 AWG hook-up, twisted pair for A/B",Wiring,
+1,Ferrules + screw terminals + heatshrink,,Wiring,
+1,M2.5 standoffs + screws,,Mounting,
+1,VHB tape / foam,,Mounting,Monitor + switch

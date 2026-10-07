@@ -1,0 +1,18 @@
+net,from,to,wire,notes
+5V_A,Buck A +5V,5V rail segment A (slots 0-3),1.5 mm2 red,Set buck to 5.10 V under load
+5V_B,Buck B +5V,5V rail segment B (slots 4-7),1.5 mm2 red,
+GND,Buck A/B GND + 12V GND,GND rail,1.5 mm2 black,Common to everything
+SLOTn_5V,5V rail,slot switch -> PTC 3A -> header pins 2 and 4,22 AWG x2 or 18 AWG,Per slot
+SLOTn_GND,GND rail,header pins 6 9 14 20 25 30 34 39,22 AWG / pours,Connect every GND pin
+SLOTn_3V3,header pin 1,RS-485 module VCC,22 AWG,Module powered by its own Pi
+SLOTn_TX,header pin 8 (GPIO14),RS-485 DI,22 AWG,
+SLOTn_RX,header pin 10 (GPIO15),RS-485 RO,22 AWG,
+SLOTn_DE,header pin 11 (GPIO17),RS-485 DE + /RE (tied),22 AWG,High = transmit
+SLOTn_ID0,header pin 29 (GPIO5),DIP sw 1 -> GND,22 AWG,Closed = bit set
+SLOTn_ID1,header pin 31 (GPIO6),DIP sw 2 -> GND,22 AWG,
+SLOTn_ID2,header pin 33 (GPIO13),DIP sw 3 -> GND,22 AWG,
+SLOTn_ID3,header pin 35 (GPIO19),DIP sw 4 -> GND,22 AWG,
+SLOTn_LED,header pin 37 (GPIO26),330R -> LED anode; cathode -> GND,22 AWG,
+BUS_A,RS-485 A of every slot,daisy chain,twisted pair,120R A-B at first and last module only
+BUS_B,RS-485 B of every slot,daisy chain,twisted pair,
+NC,header pins 27 28 (ID EEPROM) and all others,not connected,,Free pins are NOT bussed between slots

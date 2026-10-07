@@ -1,0 +1,175 @@
+#!/usr/bin/env python3
+"""
+casectl - command-line control for the PiCase cluster (run on the controller).
+
+  casectl status                 table of every slot
+  casectl identify 3             blink slot 3's LED for 10 s
+  casectl reboot 3 | all         reboot one node / every node
+  casectl shutdown 3 | all       safe power-off
+  casectl poweroff-case          shut down all workers, then the controller
+  casectl run "uptime"           run a command on every online node (SSH)
+  casectl run -s 2,5 "df -h"     ...or only on some slots
+  casectl adopt 3                copy the controller's SSH key to slot 3
+  casectl hosts                  print hostname -> IP for every node
+"""
+
+from __future__ import annotations
+
+import argparse
+import json
+import os
+import socket
+import subprocess
+import sys
+import time
+from concurrent.futures import ThreadPoolExecutor
+
+SOCKET_PATH = os.environ.get("PICASE_SOCKET", "/run/picase/master.sock")
+SSH_USER = os.environ.get("PICASE_USER", "pi")
+
+
+def call(req: dict, timeout: float = 15.0) -> dict:
+    try:
+        with socket.socket(socket.AF_UNIX, socket.SOCK_STREAM) as s:
+            s.settimeout(timeout)
+            s.connect(SOCKET_PATH)
+            s.sendall((json.dumps(req) + "\n").encode())
+            buf = b""
+            while not buf.endswith(b"\n"):
+                chunk = s.recv(65536)
+                if not chunk:
+                    break
+                buf += chunk
+        return json.loads(buf)
+    except (OSError, ValueError) as exc:
+        sys.exit(f"casectl: cannot reach bus master at {SOCKET_PATH} ({exc}).\n"
+                 f"         Is it running?  sudo systemctl status picase-master")
+
+
+def online_nodes() -> list[dict]:
+    return [n for n in call({"cmd": "status"})["nodes"] if n["online"]]
+
+
+def fmt_uptime(secs) -> str:
+    if not isinstance(secs, (int, float)):
+        return "-"
+    d, rem = divmod(int(secs), 86400)
+    h, rem = divmod(rem, 3600)
+    return f"{d}d{h:02d}h" if d else f"{h}h{rem // 60:02d}m"
+
+
+def cmd_status(_args) -> None:
+    st = call({"cmd": "status"})
+    print(f"{'SLOT':<5}{'STATE':<9}{'HOST':<16}{'IP':<15}{'TEMP':>6}{'CPU%':>6}"
+          f"{'MEM%':>6}{'DISK%':>6}{'UP':>8}  POWER")
+    for n in st["nodes"]:
+        i, s = n["info"], n["stats"]
+        if not n["online"] and not i:
+            print(f"{n['slot']:<5}{'empty':<9}")
+            continue
+        state = "online" if n["online"] else "OFFLINE"
+        thr = s.get("thr", "-")
+        power = "ok" if thr in ("0x0", "n/a") else ("-" if thr == "-" else f"WARN {thr}")
+        def num(v):
+            return f"{v:.0f}" if isinstance(v, (int, float)) else "-"
+        print(f"{n['slot']:<5}{state:<9}{i.get('h', '?')[:15]:<16}{i.get('ip', '-'):<15}"
+              f"{num(s.get('t')):>6}{num(s.get('c')):>6}{num(s.get('mu')):>6}"
+              f"{num(s.get('du')):>6}{fmt_uptime(s.get('up')):>8}  {power}")
+    online = sum(1 for n in st["nodes"] if n["online"])
+    print(f"\n{online} node(s) online, bus errors: {st.get('bad_frames', 0)}")
+
+
+def cmd_simple(args) -> None:
+    res = call({"cmd": args.command, "slot": args.slot, "secs": 10})
+    if not res.get("ok"):
+        sys.exit(res.get("error"))
+    for slot, r in res["results"].items():
+        print(f"slot {slot}: {r}")
+
+
+def cmd_poweroff_case(args) -> None:
+    if not args.yes:
+        ans = input("Shut down ALL nodes and the controller? [y/N] ")
+        if ans.lower() != "y":
+            return
+    print("Asking workers to shut down...")
+    call({"cmd": "shutdown", "slot": "all"})
+    for _ in range(30):                     # wait up to ~60 s for them to drop off
+        if not online_nodes():
+            break
+        time.sleep(2)
+    print("Workers are down. Shutting down controller - wait for the green LEDs "
+          "to stop before switching off the power.")
+    subprocess.run(["sudo", "systemctl", "poweroff"])
+
+
+def _ssh(node: dict, command: str) -> tuple[int, str]:
+    target = f"{SSH_USER}@{node['info'].get('ip')}"
+    p = subprocess.run(["ssh", "-o", "BatchMode=yes", "-o", "ConnectTimeout=5",
+                        "-o", "StrictHostKeyChecking=accept-new", target, command],
+                       capture_output=True, text=True)
+    return p.returncode, (p.stdout + p.stderr).rstrip()
+
+
+def cmd_run(args) -> None:
+    nodes = online_nodes()
+    if args.slots:
+        wanted = {int(s) for s in args.slots.split(",")}
+        nodes = [n for n in nodes if n["slot"] in wanted]
+    if not nodes:
+        sys.exit("no matching online nodes")
+    with ThreadPoolExecutor(max_workers=16) as pool:
+        results = list(pool.map(lambda n: (n, *_ssh(n, args.cmd)), nodes))
+    failed = 0
+    for node, rc, out in results:
+        tag = f"[{node['slot']:02d} {node['info'].get('h', '?')}]"
+        failed += rc != 0
+        for line in (out or "(no output)").splitlines():
+            print(f"{tag} {line}")
+        if rc:
+            print(f"{tag} exit code {rc}")
+    sys.exit(1 if failed else 0)
+
+
+def cmd_adopt(args) -> None:
+    node = next((n for n in online_nodes() if n["slot"] == args.slot), None)
+    if not node:
+        sys.exit(f"slot {args.slot} is not online")
+    key = os.path.expanduser("~/.ssh/id_ed25519")
+    if not os.path.exists(key):
+        subprocess.run(["ssh-keygen", "-t", "ed25519", "-N", "", "-f", key], check=True)
+    subprocess.run(["ssh-copy-id", "-o", "StrictHostKeyChecking=accept-new",
+                    f"{SSH_USER}@{node['info']['ip']}"])
+
+
+def cmd_hosts(_args) -> None:
+    for n in online_nodes():
+        print(f"{n['info'].get('ip', '-'):<16}picase-node{n['slot']:02d}  "
+              f"({n['info'].get('h', '?')}, {n['info'].get('m', '')})")
+
+
+def main() -> None:
+    ap = argparse.ArgumentParser(prog="casectl", description="PiCase cluster control")
+    sub = ap.add_subparsers(dest="command", required=True)
+    sub.add_parser("status").set_defaults(fn=cmd_status)
+    for name in ("identify", "reboot", "shutdown"):
+        p = sub.add_parser(name)
+        p.add_argument("slot", help="slot number or 'all'")
+        p.set_defaults(fn=cmd_simple)
+    p = sub.add_parser("poweroff-case")
+    p.add_argument("-y", "--yes", action="store_true")
+    p.set_defaults(fn=cmd_poweroff_case)
+    p = sub.add_parser("run")
+    p.add_argument("-s", "--slots", help="comma separated slot list")
+    p.add_argument("cmd")
+    p.set_defaults(fn=cmd_run)
+    p = sub.add_parser("adopt")
+    p.add_argument("slot", type=int)
+    p.set_defaults(fn=cmd_adopt)
+    sub.add_parser("hosts").set_defaults(fn=cmd_hosts)
+    args = ap.parse_args()
+    args.fn(args)
+
+
+if __name__ == "__main__":
+    main()
